@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"database/sql/driver"
 	"errors"
@@ -24,6 +25,7 @@ type Config struct {
 }
 
 type Stmt struct {
+	client *soapforce.Client
 	query string
 }
 
@@ -53,23 +55,23 @@ func (r *Rows) Next(dest []driver.Value) error {
 	panic("implement me")
 }
 
-func (*Stmt) Close() error {
+func (s *Stmt) Close() error {
 	return nil
 }
 
-func (*Stmt) NumInput() int {
+func (s *Stmt) NumInput() int {
 	return 0
 }
 
-func (*Stmt) Exec(args []driver.Value) (driver.Result, error) {
+func (s *Stmt) Exec(args []driver.Value) (driver.Result, error) {
 	return &Result{}, nil
 }
 
-func (*Stmt) Query(args []driver.Value) (driver.Rows, error) {
+func (s *Stmt) Query(args []driver.Value) (driver.Rows, error) {
 	return &Rows{}, nil
 }
 
-func (*SOQLDriver) Open(dsn string) (driver.Conn, error) {
+func (d *SOQLDriver) Open(dsn string) (driver.Conn, error) {
 	cfg, err := parseDSN(dsn)
 	if err != nil {
 		return nil, err
@@ -77,15 +79,22 @@ func (*SOQLDriver) Open(dsn string) (driver.Conn, error) {
 	return login(cfg)
 }
 
-func (*Connection) Prepare(query string) (driver.Stmt, error) {
-	return &Stmt{}, nil
+func (c *Connection) Prepare(query string) (driver.Stmt, error) {
+	return &Stmt{
+		client: c.client,
+		query: query,
+	}, nil
 }
 
-func (*Connection) Close() error {
+func (c *Connection) Close() error {
 	return nil
 }
 
-func (*Connection) Begin() (driver.Tx, error) {
+func (c *Connection) Begin() (driver.Tx, error) {
+	return nil, nil
+}
+
+func (c *Connection) ConnBeginTx(ctx context.Context, opts driver.TxOptions) (driver.Tx, error) {
 	return nil, nil
 }
 
