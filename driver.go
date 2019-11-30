@@ -6,18 +6,19 @@ import (
 	"database/sql/driver"
 	"errors"
 	"fmt"
-	"github.com/k0kubun/pp"
-	"github.com/tzmfreedom/go-soapforce"
 	"io"
 	"net/url"
 	"regexp"
+
+	"github.com/k0kubun/pp"
+	"github.com/tzmfreedom/go-soapforce"
 )
 
 type SOQLDriver struct {
 }
 
 type Connection struct {
-	lr *soapforce.LoginResult
+	lr     *soapforce.LoginResult
 	client *soapforce.Client
 }
 
@@ -29,11 +30,10 @@ type Config struct {
 
 type Stmt struct {
 	client *soapforce.Client
-	query string
+	query  string
 }
 
 type Result struct {
-
 }
 
 func (r *Result) LastInsertId() (int64, error) {
@@ -45,7 +45,7 @@ func (r *Result) RowsAffected() (int64, error) {
 }
 
 type Rows struct {
-	index int
+	index   int
 	records []*soapforce.SObject
 }
 
@@ -54,7 +54,7 @@ func (r *Rows) Columns() []string {
 	var i int
 	var columns []string
 	if record.Id != "" {
-		columns = make([]string, len(record.Fields) + 1)
+		columns = make([]string, len(record.Fields)+1)
 		columns[0] = "Id"
 		i = 1
 	} else {
@@ -123,7 +123,7 @@ func (d *SOQLDriver) Open(dsn string) (driver.Conn, error) {
 func (c *Connection) Prepare(query string) (driver.Stmt, error) {
 	return &Stmt{
 		client: c.client,
-		query: query,
+		query:  query,
 	}, nil
 }
 
@@ -173,7 +173,7 @@ func login(cfg *Config) (driver.Conn, error) {
 		return nil, err
 	}
 	return &Connection{
-		lr: lr,
+		lr:     lr,
 		client: client,
 	}, nil
 }
@@ -185,4 +185,3 @@ func init() {
 func debug(args ...interface{}) {
 	pp.Println(args...)
 }
-

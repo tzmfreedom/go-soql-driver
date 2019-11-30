@@ -2,10 +2,11 @@ package main
 
 import (
 	"database/sql"
-	"github.com/k0kubun/pp"
-	soqlDriver "github.com/tzmfreedom/go-soql-driver"
 	"net/url"
 	"os"
+
+	"github.com/k0kubun/pp"
+	soqlDriver "github.com/tzmfreedom/go-soql-driver"
 )
 
 func main() {
