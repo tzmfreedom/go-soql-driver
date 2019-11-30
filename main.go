@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/tzmfreedom/go-soapforce"
+	"io"
 	"regexp"
 )
 
@@ -41,18 +42,38 @@ func (r *Result) RowsAffected() (int64, error) {
 	panic("implement me")
 }
 
-type Rows struct {}
+type Rows struct {
+	index int
+	records []*soapforce.SObject
+}
 
 func (r *Rows) Columns() []string {
-	panic("implement me")
+	record := r.records[0]
+	columns := make([]string, len(record.Fields))
+	i := 0
+	for k, _ := range record.Fields {
+		columns[i] = k
+		i++
+	}
+	return columns
 }
 
 func (r *Rows) Close() error {
-	panic("implement me")
+	return nil
 }
 
 func (r *Rows) Next(dest []driver.Value) error {
-	panic("implement me")
+	record := r.records[r.index]
+	var i = 0
+	for _, v := range record.Fields {
+		dest[0] = v
+		i++
+	}
+	r.index++
+	if r.index >= len(r.records) {
+		return io.EOF
+	}
+	return nil
 }
 
 func (s *Stmt) Close() error {
@@ -68,7 +89,13 @@ func (s *Stmt) Exec(args []driver.Value) (driver.Result, error) {
 }
 
 func (s *Stmt) Query(args []driver.Value) (driver.Rows, error) {
-	return &Rows{}, nil
+	q, err := s.client.Query(s.query)
+	if err != nil {
+		return nil, err
+	}
+	return &Rows{
+		records: q.Records,
+	}, nil
 }
 
 func (d *SOQLDriver) Open(dsn string) (driver.Conn, error) {
