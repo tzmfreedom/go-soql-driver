@@ -1,4 +1,4 @@
-package main
+package soqlDriver
 
 import (
 	"context"
@@ -6,8 +6,10 @@ import (
 	"database/sql/driver"
 	"errors"
 	"fmt"
+	"github.com/k0kubun/pp"
 	"github.com/tzmfreedom/go-soapforce"
 	"io"
+	"net/url"
 	"regexp"
 )
 
@@ -49,8 +51,16 @@ type Rows struct {
 
 func (r *Rows) Columns() []string {
 	record := r.records[0]
-	columns := make([]string, len(record.Fields))
-	i := 0
+	var i int
+	var columns []string
+	if record.Id != "" {
+		columns = make([]string, len(record.Fields) + 1)
+		columns[0] = "Id"
+		i = 1
+	} else {
+		columns = make([]string, len(record.Fields))
+		i = 0
+	}
 	for k, _ := range record.Fields {
 		columns[i] = k
 		i++
@@ -65,8 +75,12 @@ func (r *Rows) Close() error {
 func (r *Rows) Next(dest []driver.Value) error {
 	record := r.records[r.index]
 	var i = 0
+	if record.Id != "" {
+		dest[i] = record.Id
+		i++
+	}
 	for _, v := range record.Fields {
-		dest[0] = v
+		dest[i] = v
 		i++
 	}
 	r.index++
@@ -130,11 +144,17 @@ func CreateDsn(username, password, hostname string) string {
 }
 
 func parseDSN(dsn string) (*Config, error) {
-	r := regexp.MustCompile(`^([^@]+@[^@]+):([^@]+)@([^@]+)$`)
+	r := regexp.MustCompile(`^([^@]+):([^@]+)@([^@]+)$`)
 	if r.MatchString(dsn) {
 		m := r.FindStringSubmatch(dsn)
-		username := m[1]
-		password := m[2]
+		username, err := url.QueryUnescape(m[1])
+		if err != nil {
+			return nil, err
+		}
+		password, err := url.QueryUnescape(m[2])
+		if err != nil {
+			return nil, err
+		}
 		hostname := m[3]
 		return &Config{
 			username: username,
@@ -161,3 +181,8 @@ func login(cfg *Config) (driver.Conn, error) {
 func init() {
 	sql.Register("soql", &SOQLDriver{})
 }
+
+func debug(args ...interface{}) {
+	pp.Println(args...)
+}
+

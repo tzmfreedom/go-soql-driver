@@ -4,14 +4,14 @@ import (
 	"database/sql"
 	"github.com/k0kubun/pp"
 	soqlDriver "github.com/tzmfreedom/go-soql-driver"
+	"net/url"
 	"os"
 )
 
 func main() {
-	username := os.GetEnv("SFDC_USERNAME")
-	password := os.GetEnv("SFDC_PASSWORD")
-
-	dsn := soqlDriver.CreateDsn(username, password, "login.salesforce.com")
+	username := os.Getenv("SFDC_USERNAME")
+	password := os.Getenv("SFDC_PASSWORD")
+	dsn := soqlDriver.CreateDsn(url.QueryEscape(username), url.QueryEscape(password), "login.salesforce.com")
 	db, err := sql.Open("soql", dsn)
 	if err != nil {
 		panic(err)
