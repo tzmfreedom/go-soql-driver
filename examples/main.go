@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"fmt"
 	"net/url"
 	"os"
 
@@ -17,7 +18,14 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	rows, err := db.Query("SELECT Id, Name FROM Account")
+	query(db)
+	//insert(db)
+	//update(db)
+	//delete(db)
+}
+
+func query(db *sql.DB) {
+	rows, err := db.Query("SELECT Id, Name FROM Account ORDER BY CreatedDate DESC LIMIT 10")
 	if err != nil {
 		panic(err)
 	}
@@ -25,7 +33,35 @@ func main() {
 		var id, name string
 		rows.Scan(&id, &name)
 		debug(id, name)
+		fmt.Println(id, name)
 	}
+}
+
+func insert(db *sql.DB) {
+	r, err := db.Exec("INSERT INTO Account(Name) VALUES ('Created By sql driver')")
+	if err != nil {
+		panic(err)
+	}
+	debug(r.RowsAffected())
+	query(db)
+}
+
+func update(db *sql.DB) {
+	r, err := db.Exec("UPDATE Account SET Name = 'Updated By sql driver' WHERE Name = 'Created By sql driver'")
+	if err != nil {
+		panic(err)
+	}
+	debug(r.RowsAffected())
+	query(db)
+}
+
+func delete(db *sql.DB) {
+	r, err := db.Exec("DELETE FROM Account WHERE Name = 'Updated By sql driver'")
+	if err != nil {
+		panic(err)
+	}
+	debug(r.RowsAffected())
+	query(db)
 }
 
 func debug(args ...interface{}) {

@@ -12,6 +12,14 @@ import (
 
 	"github.com/k0kubun/pp"
 	"github.com/tzmfreedom/go-soapforce"
+	"github.com/tzmfreedom/soql-cli/parser"
+)
+
+var ExecMode = ExecModeDenyNoWhere
+
+const (
+	ExecModeDenyNoWhere = iota
+	ExecModeAllowNoWhere
 )
 
 type SOQLDriver struct {
@@ -34,14 +42,15 @@ type Stmt struct {
 }
 
 type Result struct {
+	rowsAffected int64
 }
 
 func (r *Result) LastInsertId() (int64, error) {
-	panic("implement me")
+	panic("LastInsertId does not support")
 }
 
 func (r *Result) RowsAffected() (int64, error) {
-	panic("implement me")
+	return r.rowsAffected, nil
 }
 
 type Rows struct {
@@ -99,7 +108,111 @@ func (s *Stmt) NumInput() int {
 }
 
 func (s *Stmt) Exec(args []driver.Value) (driver.Result, error) {
-	return &Result{}, nil
+	stmt := parser.ParseString(s.query)
+	switch stmt.Type {
+	case "INSERT":
+		res, err := s.insert(stmt)
+		if err != nil {
+			return nil, err
+		}
+		if res.Success {
+			//fmt.Printf("%s Created: Id = %s\n", stmt.Sobject, res.Id)
+		} else {
+			//for _, error := range res.Errors {
+			//	fmt.Fprintln(os.Stderr, error.Message)
+			//}
+		}
+		return &Result{1}, nil
+	case "UPDATE":
+		results, err := s.update(stmt)
+		if err != nil {
+			return nil, err
+		}
+		var successCnt int64 = 0
+		for _, res := range results {
+			if res.Success {
+				successCnt++
+				//fmt.Printf("%s Updated: Id = %s\n", stmt.Sobject, res.Id)
+			} else {
+				//for _, error := range res.Errors {
+				//	fmt.Fprintln(os.Stderr, error.Message)
+				//}
+			}
+		}
+		return &Result{successCnt}, nil
+	case "DELETE":
+		results, err := s.delete(stmt)
+		if err != nil {
+			return nil, err
+		}
+		var successCnt int64 = 0
+		for _, res := range results {
+			if res.Success {
+				successCnt++
+				//fmt.Printf("%s Deleted: Id = %s\n", stmt.Sobject, res.Id)
+			} else {
+				//for _, error := range res.Errors {
+				//	fmt.Fprintln(os.Stderr, error.Message)
+				//}
+			}
+		}
+		return &Result{successCnt}, nil
+	}
+	return nil, nil
+}
+
+func (s *Stmt) insert(stmt *parser.Statement) (*soapforce.SaveResult, error) {
+	obj := &soapforce.SObject{}
+	obj.Type = stmt.Sobject
+	obj.Fields = map[string]interface{}{}
+	for field, value := range stmt.Values {
+		obj.Fields[field] = value
+	}
+	results, err := s.client.Create([]*soapforce.SObject{obj})
+	if err != nil {
+		return nil, err
+	}
+	res := results[0]
+	return res, nil
+}
+
+func (s *Stmt) update(stmt *parser.Statement) ([]*soapforce.SaveResult, error) {
+	if ExecMode == ExecModeDenyNoWhere && stmt.Where == "" {
+		return nil, errors.New("WHERE clause should not be blank")
+	}
+	q := fmt.Sprintf("SELECT id FROM %s %s", stmt.Sobject, stmt.Where)
+	r, err := s.client.Query(q)
+	if err != nil {
+		return nil, err
+	}
+	updateObjects := make([]*soapforce.SObject, len(r.Records))
+	for i, record := range r.Records {
+		obj := &soapforce.SObject{}
+		obj.Id = record.Id
+		obj.Type = stmt.Sobject
+		obj.Fields = map[string]interface{}{}
+		for field, value := range stmt.Values {
+			obj.Fields[field] = value
+		}
+		updateObjects[i] = obj
+	}
+	return s.client.Update(updateObjects)
+}
+
+func (s *Stmt) delete(stmt *parser.Statement) ([]*soapforce.DeleteResult, error) {
+	if ExecMode == ExecModeDenyNoWhere && stmt.Where == "" {
+		return nil, errors.New("WHERE clause should not be blank")
+	}
+	q := fmt.Sprintf("SELECT id FROM %s %s", stmt.Sobject, stmt.Where)
+	r, err := s.client.Query(q)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]string, len(r.Records))
+	for i, record := range r.Records {
+		ids[i] = record.Id
+	}
+	return s.client.Delete(ids)
 }
 
 func (s *Stmt) Query(args []driver.Value) (driver.Rows, error) {
