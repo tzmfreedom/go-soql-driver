@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/url"
 	"regexp"
+	"strings"
 
 	"github.com/k0kubun/pp"
 	"github.com/tzmfreedom/go-soapforce"
@@ -54,27 +55,13 @@ func (r *Result) RowsAffected() (int64, error) {
 }
 
 type Rows struct {
-	index   int
-	records []*soapforce.SObject
+	index        int
+	selectFields []string
+	records      []*soapforce.SObject
 }
 
 func (r *Rows) Columns() []string {
-	record := r.records[0]
-	var i int
-	var columns []string
-	if record.Id != "" {
-		columns = make([]string, len(record.Fields)+1)
-		columns[0] = "Id"
-		i = 1
-	} else {
-		columns = make([]string, len(record.Fields))
-		i = 0
-	}
-	for k, _ := range record.Fields {
-		columns[i] = k
-		i++
-	}
-	return columns
+	return r.selectFields
 }
 
 func (r *Rows) Close() error {
@@ -86,17 +73,23 @@ func (r *Rows) Next(dest []driver.Value) error {
 		return io.EOF
 	}
 	record := r.records[r.index]
-	var i = 0
-	if record.Id != "" {
-		dest[i] = record.Id
-		i++
-	}
-	for _, v := range record.Fields {
-		dest[i] = v
-		i++
+	for i, field := range r.selectFields {
+		parts := strings.Split(field, ".")
+		dest[i] = r.getField(record, parts)
 	}
 	r.index++
 	return nil
+}
+
+func (r *Rows) getField(record *soapforce.SObject, parts []string) interface{} {
+	key := parts[0]
+	if len(parts) == 1 {
+		if strings.ToLower(key) == "id" {
+			return record.Id
+		}
+		return record.Fields[key]
+	}
+	return r.getField(record.Fields[key].(*soapforce.SObject), parts[1:])
 }
 
 func (s *Stmt) Close() error {
@@ -216,12 +209,19 @@ func (s *Stmt) delete(stmt *parser.Statement) ([]*soapforce.DeleteResult, error)
 }
 
 func (s *Stmt) Query(args []driver.Value) (driver.Rows, error) {
+	r := regexp.MustCompile(`^(?i)SELECT\s+(.+)\s+FROM\s+`)
+	m := r.FindStringSubmatch(s.query)
+	fields := strings.Split(m[1], ",")
+	for i, field := range fields {
+		fields[i] = strings.TrimSpace(field)
+	}
 	q, err := s.client.Query(s.query)
 	if err != nil {
 		return nil, err
 	}
 	return &Rows{
-		records: q.Records,
+		selectFields: fields,
+		records:      q.Records,
 	}, nil
 }
 
