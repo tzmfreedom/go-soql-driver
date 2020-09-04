@@ -82,6 +82,9 @@ func (r *Rows) Close() error {
 }
 
 func (r *Rows) Next(dest []driver.Value) error {
+	if r.index >= len(r.records) {
+		return io.EOF
+	}
 	record := r.records[r.index]
 	var i = 0
 	if record.Id != "" {
@@ -93,9 +96,6 @@ func (r *Rows) Next(dest []driver.Value) error {
 		i++
 	}
 	r.index++
-	if r.index >= len(r.records) {
-		return io.EOF
-	}
 	return nil
 }
 
